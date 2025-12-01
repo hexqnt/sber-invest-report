@@ -1,0 +1,28 @@
+[package]
+name = "sber-invest-report"
+version = "0.1.0"
+edition = "2024"
+authors = ["hexqnt <kvover@gmail.com>"]
+description = "Парсер инвестиционных отчётов Сбербанка"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/hexqnt/sber-invest-report"
+homepage = "https://github.com/hexqnt/sber-invest-report"
+documentation = "https://docs.rs/sber-invest-report"
+readme = "README.md"
+categories = ["finance", "parsing"]
+keywords = ["sberbank", "investment", "parser", "reports"]
+rust-version = "1.85"
+exclude = ["data/*", "target/*"]
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+regex = "1.12"
+rust_decimal = "1.39"
+scraper = "0.24"
+thiserror = "2.0"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
