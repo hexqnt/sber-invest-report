@@ -10,7 +10,12 @@ use crate::types::{
     ReportMetadata, SecurityPosition,
 };
 use crate::utils::{
-    capture_text, collect_text, find_table_with_headers, parse_date, parse_money_or_zero,
+    capitalize_words,
+    capture_text,
+    collect_text,
+    find_table_with_headers,
+    parse_date,
+    parse_money_or_zero,
 };
 use regex::Regex;
 use rust_decimal::Decimal;
@@ -61,7 +66,7 @@ impl DomReport {
 
         let mut investor_block = None;
         for p in self.doc.select(&P_SELECTOR) {
-            let text = collect_text(p);
+            let text: String = p.text().collect();
             if text.to_lowercase().contains("инвестор") {
                 investor_block = Some(text);
                 break;
@@ -72,6 +77,7 @@ impl DomReport {
 
         let investor_name = capture_text(&investor_text, &INVESTOR_RE)
             .map(|c| c.trim().to_string())
+            .map(|name| capitalize_words(&name))
             .ok_or_else(|| ReportError::Regex(investor_text.clone()))?;
 
         let contract_number = capture_text(&investor_text, &CONTRACT_RE)
@@ -157,7 +163,11 @@ impl DomReport {
 
     /// Парсит «Сводную информацию по движению ДС».
     pub fn parse_cash_flow_summary(&self) -> Result<CashFlowSummary, ReportError> {
-        let table = find_table_with_headers(&self.doc, &["Описание", "Сумма", "Валюта"]).ok_or(
+        let table = find_table_with_headers(
+            &self.doc,
+            &["Описание", "Сумма", "Валюта"],
+            None
+        ).ok_or(
             ReportError::TableNotFound {
                 table: "CashFlowSummary",
             },
@@ -197,6 +207,7 @@ impl DomReport {
                 "Рыночная цена",
                 "Плановые зачисления",
             ],
+            Some(2)
         )
         .ok_or(ReportError::TableNotFound { table: "Portfolio" })?;
 
@@ -275,6 +286,7 @@ impl DomReport {
                 "Основание операции",
                 "Остаток лимита",
             ],
+            None
         )
         .ok_or(ReportError::TableNotFound {
             table: "IISContributions",
