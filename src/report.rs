@@ -119,24 +119,28 @@ impl<'a> ReportBuilder<'a> {
     }
 
     /// Включает или отключает таблицу оценки активов.
+    #[inline]
     pub fn asset_valuation(mut self, enabled: bool) -> Self {
         self.options.load_asset_valuation = enabled;
         self
     }
 
     /// Включает или отключает таблицу движения ДС.
+    #[inline]
     pub fn cash_flow(mut self, enabled: bool) -> Self {
         self.options.load_cash_flow = enabled;
         self
     }
 
     /// Включает или отключает портфель ценных бумаг.
+    #[inline]
     pub fn portfolio(mut self, enabled: bool) -> Self {
         self.options.load_portfolio = enabled;
         self
     }
 
     /// Включает или отключает таблицу взносов на ИИС.
+    #[inline]
     pub fn iis_contributions(mut self, enabled: bool) -> Self {
         self.options.load_iis_contributions = enabled;
         self

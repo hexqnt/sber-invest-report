@@ -27,15 +27,14 @@ fn normalize_chars<I: IntoIterator<Item = char>>(iter: I) -> String {
     output.trim().to_string()
 }
 
+/// Нормализует числовую строку, удаляя пробелы, знак плюса итд.
 fn normalize_number(input: &str) -> String {
-    let mut normalized = String::new();
-    for ch in input.chars() {
-        if ch == ' ' || ch == '\u{a0}' || ch == '\u{202f}' || ch == '+' {
-            continue;
-        }
-        normalized.push(ch);
-    }
-    normalized.trim().to_string()
+    input
+        .chars()
+        .filter(|ch| !matches!(*ch, ' ' | '\u{a0}' | '\u{202f}' | '+'))
+        .collect::<String>()
+        .trim()
+        .to_string()
 }
 
 /// Разбирает денежное значение, трактуя пустую ячейку как ноль.
@@ -93,7 +92,7 @@ pub fn find_table_with_headers<'a>(
 }
 
 /// Находит первый фрагмент текста, совпадающий с регулярным выражением.
-pub fn capture_text<'a>(text: &'a str, pattern: &Regex) -> Option<String> {
+pub fn capture_text(text: &str, pattern: &Regex) -> Option<String> {
     pattern
         .captures(text)
         .and_then(|caps| caps.get(1))

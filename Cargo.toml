@@ -1,6 +1,6 @@
 [package]
 name = "sber-invest-report"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["hexqnt <kvover@gmail.com>"]
 description = "Парсер инвестиционных отчётов Сбербанка"
@@ -18,7 +18,7 @@ exclude = ["data/*", "target/*"]
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 regex = "1.12"
 rust_decimal = "1.39"
-scraper = "0.24"
+scraper = "0.25"
 thiserror = "2.0"
 
 [lints.clippy]
