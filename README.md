@@ -1,5 +1,6 @@
 # sber-invest-report
 
+[![CI](https://github.com/hexqnt/sber-invest-report/actions/workflows/ci.yml/badge.svg)](https://github.com/hexqnt/sber-invest-report/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/sber-invest-report.svg)](https://crates.io/crates/sber-invest-report)
 [![docs.rs](https://docs.rs/sber-invest-report/badge.svg)](https://docs.rs/sber-invest-report)
 
