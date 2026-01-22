@@ -50,7 +50,7 @@ fn parses_prod_fixture() {
         report.meta.account_kind,
         sber_invest_report::AccountKind::Iis
     );
-    
+
     let markets = report.portfolio.unwrap().markets;
     assert_eq!(markets.len(), 1);
     assert_eq!(markets[0].positions.len(), 3);

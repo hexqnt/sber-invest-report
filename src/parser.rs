@@ -10,11 +10,7 @@ use crate::types::{
     ReportMetadata, SecurityPosition,
 };
 use crate::utils::{
-    capitalize_words,
-    capture_text,
-    collect_text,
-    find_table_with_headers,
-    parse_date,
+    capitalize_words, capture_text, collect_text, find_table_with_headers, parse_date,
     parse_money_or_zero,
 };
 use regex::Regex;
@@ -163,15 +159,10 @@ impl DomReport {
 
     /// Парсит «Сводную информацию по движению ДС».
     pub fn parse_cash_flow_summary(&self) -> Result<CashFlowSummary, ReportError> {
-        let table = find_table_with_headers(
-            &self.doc,
-            &["Описание", "Сумма", "Валюта"],
-            None
-        ).ok_or(
-            ReportError::TableNotFound {
+        let table = find_table_with_headers(&self.doc, &["Описание", "Сумма", "Валюта"], None)
+            .ok_or(ReportError::TableNotFound {
                 table: "CashFlowSummary",
-            },
-        )?;
+            })?;
 
         let mut rows = Vec::new();
         for (idx, tr) in table.select(&TR_SELECTOR).enumerate() {
@@ -207,7 +198,7 @@ impl DomReport {
                 "Рыночная цена",
                 "Плановые зачисления",
             ],
-            Some(2)
+            Some(2),
         )
         .ok_or(ReportError::TableNotFound { table: "Portfolio" })?;
 
@@ -286,7 +277,7 @@ impl DomReport {
                 "Основание операции",
                 "Остаток лимита",
             ],
-            None
+            None,
         )
         .ok_or(ReportError::TableNotFound {
             table: "IISContributions",

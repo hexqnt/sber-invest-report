@@ -73,7 +73,7 @@ static HEADER_SELECTOR: LazyLock<Selector> =
 pub fn find_table_with_headers<'a>(
     doc: &'a Html,
     required_headers: &[&str],
-    custom_header_depth: Option<u8>
+    custom_header_depth: Option<u8>,
 ) -> Option<ElementRef<'a>> {
     let header_depth = custom_header_depth.unwrap_or(1);
 
@@ -93,7 +93,6 @@ pub fn find_table_with_headers<'a>(
                 }
             }
         }
-    
     }
     None
 }
