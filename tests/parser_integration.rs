@@ -27,6 +27,7 @@ fn parses_broker_fixture() {
 fn parses_iis_fixture() {
     let report = load_fixture("iis_report.html");
     assert_eq!(report.meta.account_id.0, "I000XYZ");
+    assert_eq!(report.meta.investor_name, "Петр Петров");
     assert_eq!(
         report.meta.account_kind,
         sber_invest_report::AccountKind::Iis
@@ -34,6 +35,25 @@ fn parses_iis_fixture() {
     let iis = report.iis_contributions.as_ref().unwrap();
     assert_eq!(iis.rows.len(), 2);
     assert_eq!(iis.rows[0].limit_rub, sber_invest_report::Money::ZERO);
+}
+
+#[test]
+fn parses_prod_fixture() {
+    let report = load_fixture("prod_data.html");
+    assert_eq!(report.meta.investor_name, "Иванов Иван Иванович");
+    assert_eq!(
+        report.meta.account_kind,
+        sber_invest_report::AccountKind::Iis
+    );
+    assert!(report.portfolio.is_some());
+    assert_eq!(
+        report.meta.account_kind,
+        sber_invest_report::AccountKind::Iis
+    );
+    
+    let markets = report.portfolio.unwrap().markets;
+    assert_eq!(markets.len(), 1);
+    assert_eq!(markets[0].positions.len(), 3);
 }
 
 #[test]
