@@ -61,6 +61,7 @@ pub struct Report {
 
 impl Report {
     /// Парсит один HTML-отчёт, загружая все таблицы.
+    #[inline]
     pub fn parse(raw: &RawReport) -> Result<Self, ReportError> {
         Self::parse_with_options(raw, ParseOptions::everything())
     }
@@ -111,6 +112,7 @@ impl<'a> ReportBuilder<'a> {
     ///     .portfolio(false)
     ///     .parse();
     /// ```
+    #[inline]
     pub fn new(raw: &'a RawReport) -> Self {
         Self {
             raw,
@@ -120,33 +122,34 @@ impl<'a> ReportBuilder<'a> {
 
     /// Включает или отключает таблицу оценки активов.
     #[inline]
-    pub fn asset_valuation(mut self, enabled: bool) -> Self {
+    pub const fn asset_valuation(mut self, enabled: bool) -> Self {
         self.options.load_asset_valuation = enabled;
         self
     }
 
     /// Включает или отключает таблицу движения ДС.
     #[inline]
-    pub fn cash_flow(mut self, enabled: bool) -> Self {
+    pub const fn cash_flow(mut self, enabled: bool) -> Self {
         self.options.load_cash_flow = enabled;
         self
     }
 
     /// Включает или отключает портфель ценных бумаг.
     #[inline]
-    pub fn portfolio(mut self, enabled: bool) -> Self {
+    pub const fn portfolio(mut self, enabled: bool) -> Self {
         self.options.load_portfolio = enabled;
         self
     }
 
     /// Включает или отключает таблицу взносов на ИИС.
     #[inline]
-    pub fn iis_contributions(mut self, enabled: bool) -> Self {
+    pub const fn iis_contributions(mut self, enabled: bool) -> Self {
         self.options.load_iis_contributions = enabled;
         self
     }
 
     /// Выполняет парсинг с текущими настройками.
+    #[inline]
     pub fn parse(self) -> Result<Report, ReportError> {
         Report::parse_with_options(self.raw, self.options)
     }
@@ -160,6 +163,7 @@ where
     if !enabled {
         return Ok(None);
     }
+    // Отсутствие таблицы — нормальный случай для части отчётов.
     match loader() {
         Ok(value) => Ok(Some(value)),
         Err(ReportError::TableNotFound { .. }) => Ok(None),

@@ -4,7 +4,7 @@ use crate::error::ReportError;
 use scraper::Html;
 use std::io::Read;
 
-/// Исходный HTML отчёт без разборки DOM.
+/// Исходный HTML отчёта без разбора DOM.
 #[derive(Debug, Clone)]
 pub struct RawReport {
     /// Полный HTML отчёта.
@@ -12,7 +12,7 @@ pub struct RawReport {
 }
 
 impl RawReport {
-    /// Читает HTML отчёт из произвольного `Read`.
+    /// Читает HTML-отчёт из произвольного `Read`.
     pub fn from_reader<R: Read>(mut reader: R) -> Result<Self, ReportError> {
         let mut html = String::new();
         reader.read_to_string(&mut html)?;
@@ -20,6 +20,7 @@ impl RawReport {
     }
 
     /// Создаёт отчёт из готовой HTML-строки.
+    #[inline]
     pub fn from_str(s: &str) -> Self {
         Self {
             html: s.to_string(),
@@ -35,6 +36,7 @@ pub struct DomReport {
 
 impl DomReport {
     /// Парсит DOM из исходного HTML.
+    #[inline]
     pub fn parse(raw: &RawReport) -> Result<Self, ReportError> {
         Ok(Self {
             doc: Html::parse_document(&raw.html),

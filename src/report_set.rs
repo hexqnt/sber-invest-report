@@ -21,6 +21,7 @@ pub struct ReportSet {
 
 impl ReportSet {
     /// Загружает и парсит все HTML-файлы из каталога с полным набором таблиц.
+    #[inline]
     pub fn from_dir<P: AsRef<Path>>(dir: P) -> Result<Self, ReportError> {
         Self::from_dir_with(dir, |builder| builder.parse())
     }
@@ -43,6 +44,7 @@ impl ReportSet {
         let mut entries: Vec<_> = fs::read_dir(dir)?
             .filter_map(std::result::Result::ok)
             .collect();
+        // Делаем порядок файлов детерминированным.
         entries.sort_by_key(DirEntry::path);
 
         let mut reports = Vec::new();
@@ -70,6 +72,7 @@ impl ReportSet {
     }
 
     /// Возвращает итератор по отчётам конкретного договора.
+    #[inline]
     pub fn by_account<'a>(&'a self, id: &'a AccountId) -> impl Iterator<Item = &'a Report> {
         self.reports
             .iter()

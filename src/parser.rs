@@ -17,6 +17,7 @@ use regex::Regex;
 use rust_decimal::Decimal;
 use scraper::Selector;
 
+// Жёстко под шапку отчёта: три даты в одном заголовке.
 static PERIOD_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"за период с\s+(\d{2}\.\d{2}\.\d{4})\s+по\s+(\d{2}\.\d{2}\.\d{4}),\s*дата создания\s+(\d{2}\.\d{2}\.\d{4})",
@@ -60,6 +61,7 @@ impl DomReport {
         let period_end = parse_date(period_caps.get(2).unwrap().as_str())?;
         let generated_at = parse_date(period_caps.get(3).unwrap().as_str())?;
 
+        // Ищем блок "Инвестор" без стабильного селектора.
         let mut investor_block = None;
         for p in self.doc.select(&P_SELECTOR) {
             let text: String = p.text().collect();
@@ -80,6 +82,7 @@ impl DomReport {
             .map(|c| c.trim().to_string())
             .ok_or_else(|| ReportError::Regex(investor_text.clone()))?;
 
+        // Эвристика: тип счёта определяем по тексту.
         let investor_lower = investor_text.to_lowercase();
         let account_kind = if investor_lower.contains("индивидуального инвестиционного счета")
             || investor_lower.contains("иис")
@@ -116,6 +119,7 @@ impl DomReport {
 
         for (idx, tr) in table.select(&TR_SELECTOR).enumerate() {
             if idx < 3 {
+                // Первые строки — заголовки, не данные.
                 continue;
             }
             let cells: Vec<String> = tr.select(&TD_SELECTOR).map(collect_text).collect();
@@ -190,6 +194,7 @@ impl DomReport {
 
     /// Парсит таблицу «Портфель ценных бумаг».
     pub fn parse_portfolio(&self) -> Result<Portfolio, ReportError> {
+        // Здесь заголовок занимает две строки.
         let table = find_table_with_headers(
             &self.doc,
             &[
@@ -214,6 +219,7 @@ impl DomReport {
                 continue;
             }
             if cells[0].starts_with("Площадка") {
+                // Разделитель блоков по рынкам.
                 if let Some(m) = current_market.take() {
                     markets.push(m);
                 }
@@ -284,6 +290,7 @@ impl DomReport {
         })?;
 
         let mut rows = Vec::new();
+        // Год и лимит могут быть только в первой строке блока.
         let mut current_year: Option<i32> = None;
         let mut current_limit: Option<Money> = None;
 

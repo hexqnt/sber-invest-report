@@ -9,7 +9,7 @@ use scraper::{ElementRef, Html, Selector};
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-/// Нормализует последовательность символов, схлопывая группы пробельных.
+/// Нормализует последовательность символов, схлопывая группы пробельных символов.
 fn normalize_chars<I: IntoIterator<Item = char>>(iter: I) -> String {
     let mut output = String::new();
     let mut prev_space = false;
@@ -27,7 +27,7 @@ fn normalize_chars<I: IntoIterator<Item = char>>(iter: I) -> String {
     output.trim().to_string()
 }
 
-/// Нормализует числовую строку, удаляя пробелы, знак плюса итд.
+/// Нормализует числовую строку, удаляя пробелы, NBSP/NNBSP и плюс.
 fn normalize_number(input: &str) -> String {
     input
         .chars()
@@ -68,8 +68,10 @@ static ROW_SELECTOR: LazyLock<Selector> =
 static HEADER_SELECTOR: LazyLock<Selector> =
     LazyLock::new(|| Selector::parse("td, th").expect("valid header selector"));
 
-/// Ищет таблицу, чьи заголовки содержат все требуемые фразы.
-/// По умолчанию глубина заголовка 1
+/// Ищет таблицу, в которой одна из первых строк заголовка содержит все требуемые фразы.
+///
+/// Сравнение выполняется по подстроке (`contains`), а по умолчанию проверяется только первая строка
+/// заголовка (`custom_header_depth = 1`).
 pub fn find_table_with_headers<'a>(
     doc: &'a Html,
     required_headers: &[&str],
@@ -98,6 +100,8 @@ pub fn find_table_with_headers<'a>(
 }
 
 /// Находит первый фрагмент текста, совпадающий с регулярным выражением.
+///
+/// Возвращает содержимое первой захватывающей группы (группа `1`).
 pub fn capture_text(text: &str, pattern: &Regex) -> Option<String> {
     pattern
         .captures(text)
@@ -105,17 +109,14 @@ pub fn capture_text(text: &str, pattern: &Regex) -> Option<String> {
         .map(|m| m.as_str().to_string())
 }
 
-// Перевести первую букву каждого слова в верхний регистр (для ФИО)
+/// Делает первую букву каждого слова заглавной, а остальные — строчными (используется для ФИО).
 pub fn capitalize_words(s: &str) -> String {
     s.split_whitespace()
         .map(|word| {
             let mut chars = word.chars();
-            match chars.next() {
-                None => String::new(),
-                Some(first) => {
-                    first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase()
-                }
-            }
+            chars.next().map_or_else(String::new, |first| {
+                first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase()
+            })
         })
         .collect::<Vec<String>>()
         .join(" ")
