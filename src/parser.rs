@@ -2,11 +2,13 @@
 
 use std::sync::LazyLock;
 
+use crate::diagnostics::ParseWarning;
 use crate::error::ReportError;
+use crate::parse_config::ParseMode;
 use crate::raw::DomReport;
 use crate::types::{
     AccountId, AccountKind, AssetValuation, AssetValuationRow, CashFlowKind, CashFlowRow,
-    CashFlowSummary, IisContribution, IisContributionsTable, Money, Portfolio, PortfolioMarket,
+    CashFlowSummary, IisContribution, IisContributionsTable, IisLimit, Portfolio, PortfolioMarket,
     ReportMetadata, SecurityPosition,
 };
 use crate::utils::{
@@ -43,8 +45,17 @@ static H3_SELECTOR: LazyLock<Selector> =
 static P_SELECTOR: LazyLock<Selector> =
     LazyLock::new(|| Selector::parse("p").expect("valid p selector"));
 
+const TABLE_ASSET_VALUATION: &str = "RatingAssets";
+const TABLE_CASH_FLOW: &str = "CashFlowSummary";
+const TABLE_PORTFOLIO: &str = "Portfolio";
+const TABLE_IIS: &str = "IISContributions";
+
 impl DomReport {
     /// Извлекает метаданные из шапки отчёта.
+    ///
+    /// # Errors
+    ///
+    /// Возвращает ошибку, если отсутствуют обязательные поля шапки или не удалось распарсить даты.
     pub fn meta(&self) -> Result<ReportMetadata, ReportError> {
         let heading_text = self
             .doc
@@ -57,9 +68,9 @@ impl DomReport {
             .captures(&heading_text)
             .ok_or_else(|| ReportError::Regex(heading_text.clone()))?;
 
-        let period_start = parse_date(period_caps.get(1).unwrap().as_str())?;
-        let period_end = parse_date(period_caps.get(2).unwrap().as_str())?;
-        let generated_at = parse_date(period_caps.get(3).unwrap().as_str())?;
+        let period_start = parse_capture_date(&period_caps, 1, &heading_text)?;
+        let period_end = parse_capture_date(&period_caps, 2, &heading_text)?;
+        let generated_at = parse_capture_date(&period_caps, 3, &heading_text)?;
 
         // Ищем блок "Инвестор" без стабильного селектора.
         let mut investor_block = None;
@@ -104,13 +115,26 @@ impl DomReport {
     }
 
     /// Парсит таблицу «Оценка активов, руб.».
+    ///
+    /// # Errors
+    ///
+    /// Возвращает ошибку, если таблица отсутствует или в числовых полях встретились невалидные данные.
     pub fn parse_asset_valuation(&self) -> Result<AssetValuation, ReportError> {
+        let mut ignored_warnings = Vec::new();
+        self.parse_asset_valuation_with_mode(ParseMode::Lenient, &mut ignored_warnings)
+    }
+
+    pub(crate) fn parse_asset_valuation_with_mode(
+        &self,
+        mode: ParseMode,
+        warnings: &mut Vec<ParseWarning>,
+    ) -> Result<AssetValuation, ReportError> {
         let table = self
             .doc
             .select(&RATING_SELECTOR)
             .next()
             .ok_or(ReportError::TableNotFound {
-                table: "RatingAssets",
+                table: TABLE_ASSET_VALUATION,
             })?;
 
         let mut rows = Vec::new();
@@ -134,6 +158,7 @@ impl DomReport {
                 continue;
             }
             if cells.len() < 10 {
+                ensure_min_cells(TABLE_ASSET_VALUATION, idx, cells.len(), 10, mode, warnings)?;
                 continue;
             }
 
@@ -158,14 +183,27 @@ impl DomReport {
                 .fold(Decimal::ZERO, |acc, v| acc + v);
         }
 
-        Ok(AssetValuation { rows, total_delta })
+        Ok(AssetValuation::new(rows, total_delta))
     }
 
     /// Парсит «Сводную информацию по движению ДС».
+    ///
+    /// # Errors
+    ///
+    /// Возвращает ошибку, если таблица отсутствует или в её строках не удалось распарсить суммы.
     pub fn parse_cash_flow_summary(&self) -> Result<CashFlowSummary, ReportError> {
+        let mut ignored_warnings = Vec::new();
+        self.parse_cash_flow_summary_with_mode(ParseMode::Lenient, &mut ignored_warnings)
+    }
+
+    pub(crate) fn parse_cash_flow_summary_with_mode(
+        &self,
+        mode: ParseMode,
+        warnings: &mut Vec<ParseWarning>,
+    ) -> Result<CashFlowSummary, ReportError> {
         let table = find_table_with_headers(&self.doc, &["Описание", "Сумма", "Валюта"], None)
             .ok_or(ReportError::TableNotFound {
-                table: "CashFlowSummary",
+                table: TABLE_CASH_FLOW,
             })?;
 
         let mut rows = Vec::new();
@@ -175,6 +213,7 @@ impl DomReport {
             }
             let cells: Vec<String> = tr.select(&TD_SELECTOR).map(collect_text).collect();
             if cells.len() < 3 {
+                ensure_min_cells(TABLE_CASH_FLOW, idx, cells.len(), 3, mode, warnings)?;
                 continue;
             }
             if cells.iter().all(String::is_empty) {
@@ -189,11 +228,24 @@ impl DomReport {
             });
         }
 
-        Ok(CashFlowSummary { rows })
+        Ok(CashFlowSummary::new(rows))
     }
 
     /// Парсит таблицу «Портфель ценных бумаг».
+    ///
+    /// # Errors
+    ///
+    /// Возвращает ошибку, если таблица отсутствует или в её строках невалидные значения.
     pub fn parse_portfolio(&self) -> Result<Portfolio, ReportError> {
+        let mut ignored_warnings = Vec::new();
+        self.parse_portfolio_with_mode(ParseMode::Lenient, &mut ignored_warnings)
+    }
+
+    pub(crate) fn parse_portfolio_with_mode(
+        &self,
+        mode: ParseMode,
+        warnings: &mut Vec<ParseWarning>,
+    ) -> Result<Portfolio, ReportError> {
         // Здесь заголовок занимает две строки.
         let table = find_table_with_headers(
             &self.doc,
@@ -205,7 +257,9 @@ impl DomReport {
             ],
             Some(2),
         )
-        .ok_or(ReportError::TableNotFound { table: "Portfolio" })?;
+        .ok_or(ReportError::TableNotFound {
+            table: TABLE_PORTFOLIO,
+        })?;
 
         let mut markets: Vec<PortfolioMarket> = Vec::new();
         let mut current_market: Option<PortfolioMarket> = None;
@@ -231,6 +285,7 @@ impl DomReport {
                 continue;
             }
             if cells.len() < 18 {
+                ensure_min_cells(TABLE_PORTFOLIO, idx, cells.len(), 18, mode, warnings)?;
                 continue;
             }
             let position = SecurityPosition {
@@ -268,11 +323,24 @@ impl DomReport {
             markets.push(market);
         }
 
-        Ok(Portfolio { markets })
+        Ok(Portfolio::new(markets))
     }
 
     /// Парсит таблицу пополнений ИИС, если она есть в отчёте.
+    ///
+    /// # Errors
+    ///
+    /// Возвращает ошибку, если таблица отсутствует или в строках встречены невалидные значения.
     pub fn parse_iis_contributions(&self) -> Result<IisContributionsTable, ReportError> {
+        let mut ignored_warnings = Vec::new();
+        self.parse_iis_contributions_with_mode(ParseMode::Lenient, &mut ignored_warnings)
+    }
+
+    pub(crate) fn parse_iis_contributions_with_mode(
+        &self,
+        mode: ParseMode,
+        warnings: &mut Vec<ParseWarning>,
+    ) -> Result<IisContributionsTable, ReportError> {
         let table = find_table_with_headers(
             &self.doc,
             &[
@@ -285,14 +353,12 @@ impl DomReport {
             ],
             None,
         )
-        .ok_or(ReportError::TableNotFound {
-            table: "IISContributions",
-        })?;
+        .ok_or(ReportError::TableNotFound { table: TABLE_IIS })?;
 
         let mut rows = Vec::new();
         // Год и лимит могут быть только в первой строке блока.
         let mut current_year: Option<i32> = None;
-        let mut current_limit: Option<Money> = None;
+        let mut current_limit: Option<IisLimit> = None;
 
         for (idx, tr) in table.select(&TR_SELECTOR).enumerate() {
             if idx < 3 {
@@ -300,6 +366,7 @@ impl DomReport {
             }
             let cells: Vec<String> = tr.select(&TD_SELECTOR).map(collect_text).collect();
             if cells.len() < 6 {
+                ensure_min_cells(TABLE_IIS, idx, cells.len(), 6, mode, warnings)?;
                 continue;
             }
             if cells.iter().all(String::is_empty) {
@@ -318,29 +385,17 @@ impl DomReport {
                     );
             }
             if !cells[1].is_empty() {
-                let lower = cells[1].to_lowercase();
-                if lower.contains("ограничений нет") {
-                    current_limit = Some(Decimal::ZERO);
-                } else {
-                    current_limit = Some(parse_money_or_zero(&cells[1], "Лимит ИИС")?);
-                }
+                current_limit = Some(parse_iis_limit(&cells[1], "Лимит ИИС")?);
             }
             if cells[2].is_empty() {
                 continue;
             }
 
             let year = current_year.ok_or(ReportError::MissingField { field: "Год" })?;
-            let limit = current_limit.unwrap_or(Decimal::ZERO);
+            let limit = current_limit.unwrap_or(IisLimit::Amount(Decimal::ZERO));
             let date = parse_date(&cells[2])?;
             let amount = parse_money_or_zero(&cells[3], "Сумма ИИС")?;
-            let remaining_limit = {
-                let lower = cells[5].to_lowercase();
-                if lower.contains("ограничений нет") {
-                    Decimal::ZERO
-                } else {
-                    parse_money_or_zero(&cells[5], "Остаток лимита")?
-                }
-            };
+            let remaining_limit = parse_iis_limit(&cells[5], "Остаток лимита")?;
 
             rows.push(IisContribution {
                 year,
@@ -352,7 +407,7 @@ impl DomReport {
             });
         }
 
-        Ok(IisContributionsTable { rows })
+        Ok(IisContributionsTable::new(rows))
     }
 }
 
@@ -373,5 +428,51 @@ fn classify_cash_flow(description: &str) -> CashFlowKind {
         CashFlowKind::ClosingBalance
     } else {
         CashFlowKind::Unknown
+    }
+}
+
+fn parse_capture_date(
+    captures: &regex::Captures<'_>,
+    index: usize,
+    original_text: &str,
+) -> Result<chrono::NaiveDate, ReportError> {
+    let value = captures
+        .get(index)
+        .ok_or_else(|| ReportError::Regex(original_text.to_string()))?
+        .as_str();
+    parse_date(value)
+}
+
+#[allow(clippy::missing_const_for_fn)]
+fn ensure_min_cells(
+    table: &'static str,
+    row_index: usize,
+    actual_cells: usize,
+    expected_cells: usize,
+    mode: ParseMode,
+    warnings: &mut Vec<ParseWarning>,
+) -> Result<(), ReportError> {
+    if mode.is_strict() {
+        return Err(ReportError::MalformedRow {
+            table,
+            row_index,
+            expected_cells,
+            actual_cells,
+        });
+    }
+    warnings.push(ParseWarning::MalformedRow {
+        table,
+        row_index,
+        expected_cells,
+        actual_cells,
+    });
+    Ok(())
+}
+
+fn parse_iis_limit(value: &str, column: &'static str) -> Result<IisLimit, ReportError> {
+    if value.to_lowercase().contains("ограничений нет") {
+        Ok(IisLimit::Unlimited)
+    } else {
+        parse_money_or_zero(value, column).map(IisLimit::Amount)
     }
 }

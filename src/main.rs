@@ -6,9 +6,7 @@ use std::fs::File;
 use sber_invest_report::{RawReport, ReportBuilder};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let path = if let Some(path) = env::args().nth(1) {
-        path
-    } else {
+    let Some(path) = env::args().nth(1) else {
         println!("Usage: sber-invest-report <path-to-report.html>");
         return Ok(());
     };
@@ -18,31 +16,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!(
         "Счёт: {}, период {} — {}",
-        report.meta.account_id.0, report.meta.period_start, report.meta.period_end
+        report.meta().account_id.0,
+        report.meta().period_start,
+        report.meta().period_end
     );
-    println!("Инвестор: {}", report.meta.investor_name);
-    println!("Договор: {}", report.meta.contract_number);
-    if let Some(av) = &report.asset_valuation {
+    println!("Инвестор: {}", report.meta().investor_name);
+    println!("Договор: {}", report.meta().contract_number);
+    if let Some(av) = report.asset_valuation() {
         println!(
             "Оценка активов: {} строк, итоговое изменение {}",
-            av.rows.len(),
-            av.total_delta
+            av.rows().len(),
+            av.total_delta()
         );
     }
-    if let Some(portfolio) = &report.portfolio {
-        let positions: usize = portfolio.markets.iter().map(|m| m.positions.len()).sum();
+    if let Some(portfolio) = report.portfolio() {
+        let positions: usize = portfolio.iter_positions().count();
         println!(
             "Портфель: {} площадок, {} позиций",
-            portfolio.markets.len(),
+            portfolio.markets().len(),
             positions
         );
     }
-    if let Some(cash) = &report.cash_flow_summary {
-        let total: sber_invest_report::Money = cash.rows.iter().map(|r| r.amount).sum();
-        println!("Движение ДС: {} строк, сумма {}", cash.rows.len(), total);
+    if let Some(cash) = report.cash_flow_summary() {
+        let total: sber_invest_report::Money = cash.iter_rows().map(|r| r.amount).sum();
+        println!("Движение ДС: {} строк, сумма {}", cash.rows().len(), total);
     }
-    if let Some(iis) = &report.iis_contributions {
-        println!("Взносы на ИИС: {} записей", iis.rows.len());
+    if let Some(iis) = report.iis_contributions() {
+        println!("Взносы на ИИС: {} записей", iis.rows().len());
     }
     Ok(())
 }

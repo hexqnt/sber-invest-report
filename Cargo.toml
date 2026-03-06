@@ -1,6 +1,6 @@
 [package]
 name = "sber-invest-report"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 authors = ["hexqnt <kvover@gmail.com>"]
 description = "Парсер инвестиционных отчётов Сбербанка"
@@ -17,12 +17,13 @@ exclude = ["data/*", "target/*"]
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 regex = "1.12"
-rust_decimal = "1.39"
+rust_decimal = "1.40"
 scraper = "0.25"
 thiserror = "2.0"
 
 [lints.clippy]
-all = "warn"
-pedantic = "warn"
-nursery = "warn"
-cargo = "warn"
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+multiple_crate_versions = "allow"

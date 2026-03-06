@@ -38,4 +38,18 @@ pub enum ReportError {
     /// Не удалось сопоставить текст с ожидаемым форматом.
     #[error("Regex did not match: {0}")]
     Regex(String),
+    /// Строка таблицы не соответствует ожидаемой структуре.
+    #[error(
+        "Malformed row in table '{table}' at index {row_index}: expected at least {expected_cells} cells, found {actual_cells}"
+    )]
+    MalformedRow {
+        /// Имя таблицы.
+        table: &'static str,
+        /// Индекс строки внутри таблицы (0-based).
+        row_index: usize,
+        /// Минимально ожидаемое количество ячеек.
+        expected_cells: usize,
+        /// Фактическое количество ячеек.
+        actual_cells: usize,
+    },
 }

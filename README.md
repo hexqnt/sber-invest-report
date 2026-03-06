@@ -36,7 +36,7 @@ use std::fs::File;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let raw = RawReport::from_reader(File::open("report.html")?)?;
     let report = ReportBuilder::new(&raw).parse()?;
-    println!("Счёт: {}", report.meta.account_id.0);
+    println!("Счёт: {}", report.meta().account_id.0);
     Ok(())
 }
 ```
@@ -50,8 +50,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let set = ReportSet::from_dir("reports")?;
     let merged_cash = set.merge_cash_flows();
     let merged_positions = set.merge_positions();
-    println!("Всего отчётов: {}", set.reports.len());
-    println!("Движение ДС строк: {}", merged_cash.rows.len());
+    println!("Всего отчётов: {}", set.len());
+    println!("Движение ДС строк: {}", merged_cash.rows().len());
     println!("Позиции ISIN: {}", merged_positions.len());
     Ok(())
 }
@@ -60,15 +60,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Частичный парсинг через билдер
 
 ```rust
-use sber_invest_report::{RawReport, ReportBuilder};
+use sber_invest_report::{RawReport, ReportBuilder, ReportSection, SectionSet};
 use std::fs::File;
 
 let raw = RawReport::from_reader(File::open("report.html")?)?;
 let report = ReportBuilder::new(&raw)
-    .portfolio(true)
-    .asset_valuation(false)
-    .cash_flow(true)
-    .iis_contributions(false)
+    .sections(
+        SectionSet::meta_only()
+            .with(ReportSection::CashFlowSummary)
+            .with(ReportSection::Portfolio),
+    )
+    .section(ReportSection::Portfolio, false)
     .parse()?;
 ```
 

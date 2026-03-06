@@ -67,9 +67,34 @@ pub struct AssetValuationRow {
 #[derive(Debug, Clone)]
 pub struct AssetValuation {
     /// Строки таблицы.
-    pub rows: Vec<AssetValuationRow>,
+    pub(crate) rows: Vec<AssetValuationRow>,
     /// Итоговое изменение.
-    pub total_delta: Money,
+    pub(crate) total_delta: Money,
+}
+
+impl AssetValuation {
+    /// Создаёт агрегат таблицы оценки активов.
+    #[must_use]
+    pub const fn new(rows: Vec<AssetValuationRow>, total_delta: Money) -> Self {
+        Self { rows, total_delta }
+    }
+
+    /// Возвращает все строки таблицы.
+    #[must_use]
+    pub fn rows(&self) -> &[AssetValuationRow] {
+        &self.rows
+    }
+
+    /// Возвращает итератор по строкам таблицы.
+    pub fn iter_rows(&self) -> impl Iterator<Item = &AssetValuationRow> {
+        self.rows.iter()
+    }
+
+    /// Возвращает итоговое изменение.
+    #[must_use]
+    pub const fn total_delta(&self) -> Money {
+        self.total_delta
+    }
 }
 
 /// Тип строки в сводной таблице движения денежных средств.
@@ -108,7 +133,26 @@ pub struct CashFlowRow {
 #[derive(Debug, Clone)]
 pub struct CashFlowSummary {
     /// Строки сводки.
-    pub rows: Vec<CashFlowRow>,
+    pub(crate) rows: Vec<CashFlowRow>,
+}
+
+impl CashFlowSummary {
+    /// Создаёт сводку движения денежных средств.
+    #[must_use]
+    pub const fn new(rows: Vec<CashFlowRow>) -> Self {
+        Self { rows }
+    }
+
+    /// Возвращает строки сводки.
+    #[must_use]
+    pub fn rows(&self) -> &[CashFlowRow] {
+        &self.rows
+    }
+
+    /// Возвращает итератор по строкам сводки.
+    pub fn iter_rows(&self) -> impl Iterator<Item = &CashFlowRow> {
+        self.rows.iter()
+    }
 }
 
 /// Позиция ценной бумаги на начало и конец периода.
@@ -160,16 +204,93 @@ pub struct SecurityPosition {
 #[derive(Debug, Clone)]
 pub struct PortfolioMarket {
     /// Название площадки.
-    pub name: String,
+    pub(crate) name: String,
     /// Позиции на площадке.
-    pub positions: Vec<SecurityPosition>,
+    pub(crate) positions: Vec<SecurityPosition>,
+}
+
+impl PortfolioMarket {
+    /// Создаёт рыночный блок портфеля.
+    #[must_use]
+    pub const fn new(name: String, positions: Vec<SecurityPosition>) -> Self {
+        Self { name, positions }
+    }
+
+    /// Возвращает название торговой площадки.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Возвращает позиции площадки.
+    #[must_use]
+    pub fn positions(&self) -> &[SecurityPosition] {
+        &self.positions
+    }
+
+    /// Возвращает итератор по позициям площадки.
+    pub fn iter_positions(&self) -> impl Iterator<Item = &SecurityPosition> {
+        self.positions.iter()
+    }
 }
 
 /// Портфель ценных бумаг отчёта.
 #[derive(Debug, Clone)]
 pub struct Portfolio {
     /// Площадки с позициями.
-    pub markets: Vec<PortfolioMarket>,
+    pub(crate) markets: Vec<PortfolioMarket>,
+}
+
+impl Portfolio {
+    /// Создаёт портфель из списка площадок.
+    #[must_use]
+    pub const fn new(markets: Vec<PortfolioMarket>) -> Self {
+        Self { markets }
+    }
+
+    /// Возвращает срез площадок.
+    #[must_use]
+    pub fn markets(&self) -> &[PortfolioMarket] {
+        &self.markets
+    }
+
+    /// Возвращает итератор по площадкам.
+    pub fn iter_markets(&self) -> impl Iterator<Item = &PortfolioMarket> {
+        self.markets.iter()
+    }
+
+    /// Возвращает итератор по всем позициям портфеля.
+    pub fn iter_positions(&self) -> impl Iterator<Item = &SecurityPosition> {
+        self.markets
+            .iter()
+            .flat_map(PortfolioMarket::iter_positions)
+    }
+}
+
+/// Лимит ИИС: фиксированная сумма или отсутствие ограничений.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IisLimit {
+    /// Для периода лимит не ограничен.
+    Unlimited,
+    /// Лимит задан конкретной суммой в рублях.
+    Amount(Money),
+}
+
+impl IisLimit {
+    /// Возвращает `true`, если лимит не ограничен.
+    #[must_use]
+    pub const fn is_unlimited(self) -> bool {
+        matches!(self, Self::Unlimited)
+    }
+
+    /// Возвращает сумму лимита, если он задан числом.
+    #[must_use]
+    pub const fn amount(self) -> Option<Money> {
+        match self {
+            Self::Unlimited => None,
+            Self::Amount(value) => Some(value),
+        }
+    }
 }
 
 /// Строка таблицы пополнений ИИС.
@@ -178,7 +299,7 @@ pub struct IisContribution {
     /// Год.
     pub year: i32,
     /// Лимит на год.
-    pub limit_rub: Money,
+    pub limit_rub: IisLimit,
     /// Дата операции.
     pub date: NaiveDate,
     /// Сумма.
@@ -186,14 +307,33 @@ pub struct IisContribution {
     /// Основание операции.
     pub operation_reason: String,
     /// Остаток лимита.
-    pub remaining_limit: Money,
+    pub remaining_limit: IisLimit,
 }
 
 /// Таблица пополнений ИИС.
 #[derive(Debug, Clone)]
 pub struct IisContributionsTable {
     /// Операции пополнения ИИС.
-    pub rows: Vec<IisContribution>,
+    pub(crate) rows: Vec<IisContribution>,
+}
+
+impl IisContributionsTable {
+    /// Создаёт таблицу взносов ИИС.
+    #[must_use]
+    pub const fn new(rows: Vec<IisContribution>) -> Self {
+        Self { rows }
+    }
+
+    /// Возвращает строки таблицы.
+    #[must_use]
+    pub fn rows(&self) -> &[IisContribution] {
+        &self.rows
+    }
+
+    /// Возвращает итератор по строкам таблицы.
+    pub fn iter_rows(&self) -> impl Iterator<Item = &IisContribution> {
+        self.rows.iter()
+    }
 }
 
 /// Итоговая позиция после агрегации нескольких отчётов.
