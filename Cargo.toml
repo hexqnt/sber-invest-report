@@ -17,7 +17,7 @@ exclude = ["data/*", "target/*"]
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 regex = "1.12"
 rust_decimal = "1.41"
-scraper = "0.25"
+scraper = "0.26"
 thiserror = "2.0"
 
 [lints.clippy]
