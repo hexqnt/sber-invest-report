@@ -11,14 +11,13 @@ homepage = "https://github.com/hexqnt/sber-invest-report"
 readme = "README.md"
 categories = ["finance", "parsing"]
 keywords = ["sberbank", "investment", "parser", "reports"]
-rust-version = "1.85"
 exclude = ["data/*", "target/*"]
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 regex = "1.12"
 rust_decimal = "1.41"
-scraper = "0.26"
+scraper = "0.25"
 thiserror = "2.0"
 
 [lints.clippy]
