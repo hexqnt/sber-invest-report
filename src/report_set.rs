@@ -45,16 +45,19 @@ impl ReportSet {
     }
 
     /// Возвращает итератор по отчётам набора.
+    #[inline]
     pub fn iter_reports(&self) -> impl Iterator<Item = &Report> {
         self.reports.iter()
     }
 
     /// Возвращает итератор по строкам движения денежных средств всех отчётов.
+    #[inline]
     pub fn iter_cash_flows(&self) -> impl Iterator<Item = &CashFlowRow> {
         self.reports.iter().flat_map(Report::cash_flow_rows)
     }
 
     /// Возвращает итератор по позициям портфеля всех отчётов.
+    #[inline]
     pub fn iter_positions(&self) -> impl Iterator<Item = &SecurityPosition> {
         self.reports.iter().flat_map(Report::positions)
     }
@@ -226,9 +229,10 @@ fn is_html_file(path: &Path) -> bool {
     if !path.is_file() {
         return false;
     }
-    path.extension()
-        .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| matches!(ext.to_ascii_lowercase().as_str(), "html" | "htm"))
+    matches!(
+        path.extension().and_then(|ext| ext.to_str()),
+        Some(ext) if ext.eq_ignore_ascii_case("html") || ext.eq_ignore_ascii_case("htm")
+    )
 }
 
 fn parse_with_default_builder(builder: ReportBuilder<'_>) -> Result<Report, ReportError> {

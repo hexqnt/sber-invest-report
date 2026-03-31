@@ -87,6 +87,7 @@ impl Report {
     }
 
     /// Возвращает итератор по строкам движения денежных средств без дополнительных аллокаций.
+    #[inline]
     pub fn cash_flow_rows(&self) -> impl Iterator<Item = &CashFlowRow> {
         self.cash_flow_summary
             .iter()
@@ -94,16 +95,19 @@ impl Report {
     }
 
     /// Возвращает итератор по площадкам портфеля без дополнительных аллокаций.
+    #[inline]
     pub fn markets(&self) -> impl Iterator<Item = &PortfolioMarket> {
         self.portfolio.iter().flat_map(Portfolio::iter_markets)
     }
 
     /// Возвращает итератор по всем позициям портфеля без дополнительных аллокаций.
+    #[inline]
     pub fn positions(&self) -> impl Iterator<Item = &SecurityPosition> {
         self.portfolio.iter().flat_map(Portfolio::iter_positions)
     }
 
     /// Возвращает итератор по строкам таблицы пополнений ИИС без дополнительных аллокаций.
+    #[inline]
     pub fn iis_rows(&self) -> impl Iterator<Item = &IisContribution> {
         self.iis_contributions
             .iter()

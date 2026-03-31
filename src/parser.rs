@@ -17,7 +17,7 @@ use crate::utils::{
 };
 use regex::Regex;
 use rust_decimal::Decimal;
-use scraper::Selector;
+use scraper::{ElementRef, Selector};
 
 // Жёстко под шапку отчёта: три даты в одном заголовке.
 static PERIOD_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -50,6 +50,15 @@ const TABLE_CASH_FLOW: &str = "CashFlowSummary";
 const TABLE_PORTFOLIO: &str = "Portfolio";
 const TABLE_IIS: &str = "IISContributions";
 
+const CASH_FLOW_RULES: [(&str, CashFlowKind); 6] = [
+    ("входящий остаток", CashFlowKind::OpeningBalance),
+    ("сальдо расчетов по сделкам", CashFlowKind::TradesNet),
+    ("корпоративные действия", CashFlowKind::CorporateActions),
+    ("комиссия брокера", CashFlowKind::BrokerFee),
+    ("комиссия биржи", CashFlowKind::ExchangeFee),
+    ("исходящий остаток", CashFlowKind::ClosingBalance),
+];
+
 impl DomReport {
     /// Извлекает метаданные из шапки отчёта.
     ///
@@ -73,24 +82,23 @@ impl DomReport {
         let generated_at = parse_capture_date(&period_caps, 3, &heading_text)?;
 
         // Ищем блок "Инвестор" без стабильного селектора.
-        let mut investor_block = None;
-        for p in self.doc.select(&P_SELECTOR) {
-            let text: String = p.text().collect();
-            if text.to_lowercase().contains("инвестор") {
-                investor_block = Some(text);
-                break;
-            }
-        }
-        let investor_text =
-            investor_block.ok_or(ReportError::MissingField { field: "investor" })?;
+        let investor_text = self
+            .doc
+            .select(&P_SELECTOR)
+            .find_map(|p| {
+                let text: String = p.text().collect();
+                text.to_lowercase().contains("инвестор").then_some(text)
+            })
+            .ok_or(ReportError::MissingField { field: "investor" })?;
 
         let investor_name = capture_text(&investor_text, &INVESTOR_RE)
-            .map(|c| c.trim().to_string())
-            .map(|name| capitalize_words(&name))
+            .map(str::trim)
+            .map(capitalize_words)
             .ok_or_else(|| ReportError::Regex(investor_text.clone()))?;
 
         let contract_number = capture_text(&investor_text, &CONTRACT_RE)
-            .map(|c| c.trim().to_string())
+            .map(str::trim)
+            .map(str::to_owned)
             .ok_or_else(|| ReportError::Regex(investor_text.clone()))?;
 
         // Эвристика: тип счёта определяем по тексту.
@@ -146,7 +154,7 @@ impl DomReport {
                 // Первые строки — заголовки, не данные.
                 continue;
             }
-            let cells: Vec<String> = tr.select(&TD_SELECTOR).map(collect_text).collect();
+            let cells = row_cells(tr);
             if cells.is_empty() {
                 continue;
             }
@@ -211,7 +219,7 @@ impl DomReport {
             if idx < 2 {
                 continue;
             }
-            let cells: Vec<String> = tr.select(&TD_SELECTOR).map(collect_text).collect();
+            let cells = row_cells(tr);
             if cells.len() < 3 {
                 ensure_min_cells(TABLE_CASH_FLOW, idx, cells.len(), 3, mode, warnings)?;
                 continue;
@@ -268,7 +276,7 @@ impl DomReport {
             if idx < 3 {
                 continue;
             }
-            let cells: Vec<String> = tr.select(&TD_SELECTOR).map(collect_text).collect();
+            let cells = row_cells(tr);
             if cells.is_empty() {
                 continue;
             }
@@ -364,7 +372,7 @@ impl DomReport {
             if idx < 3 {
                 continue;
             }
-            let cells: Vec<String> = tr.select(&TD_SELECTOR).map(collect_text).collect();
+            let cells = row_cells(tr);
             if cells.len() < 6 {
                 ensure_min_cells(TABLE_IIS, idx, cells.len(), 6, mode, warnings)?;
                 continue;
@@ -414,21 +422,10 @@ impl DomReport {
 /// Классифицирует строку сводки ДС по известным типам.
 fn classify_cash_flow(description: &str) -> CashFlowKind {
     let lower = description.to_lowercase();
-    if lower.contains("входящий остаток") {
-        CashFlowKind::OpeningBalance
-    } else if lower.contains("сальдо расчетов по сделкам") {
-        CashFlowKind::TradesNet
-    } else if lower.contains("корпоративные действия") {
-        CashFlowKind::CorporateActions
-    } else if lower.contains("комиссия брокера") {
-        CashFlowKind::BrokerFee
-    } else if lower.contains("комиссия биржи") {
-        CashFlowKind::ExchangeFee
-    } else if lower.contains("исходящий остаток") {
-        CashFlowKind::ClosingBalance
-    } else {
-        CashFlowKind::Unknown
-    }
+    CASH_FLOW_RULES
+        .iter()
+        .find_map(|(needle, kind)| lower.contains(needle).then_some(*kind))
+        .unwrap_or(CashFlowKind::Unknown)
 }
 
 fn parse_capture_date(
@@ -474,5 +471,51 @@ fn parse_iis_limit(value: &str, column: &'static str) -> Result<IisLimit, Report
         Ok(IisLimit::Unlimited)
     } else {
         parse_money_or_zero(value, column).map(IisLimit::Amount)
+    }
+}
+
+fn row_cells(tr: ElementRef<'_>) -> Vec<String> {
+    tr.select(&TD_SELECTOR).map(collect_text).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_decimal::Decimal;
+
+    #[test]
+    fn classify_cash_flow_matches_known_labels() {
+        assert_eq!(
+            classify_cash_flow("Входящий остаток денежных средств"),
+            CashFlowKind::OpeningBalance
+        );
+        assert_eq!(
+            classify_cash_flow("Комиссия брокера, удержанная за операции"),
+            CashFlowKind::BrokerFee
+        );
+        assert_eq!(
+            classify_cash_flow("исходящий остаток"),
+            CashFlowKind::ClosingBalance
+        );
+    }
+
+    #[test]
+    fn classify_cash_flow_unknown_for_unmatched_description() {
+        assert_eq!(
+            classify_cash_flow("Произвольная строка"),
+            CashFlowKind::Unknown
+        );
+    }
+
+    #[test]
+    fn parse_iis_limit_handles_unlimited_and_amount() {
+        assert_eq!(
+            parse_iis_limit("ОГРАНИЧЕНИЙ НЕТ", "Лимит").expect("must parse unlimited"),
+            IisLimit::Unlimited
+        );
+        assert_eq!(
+            parse_iis_limit("12345.67", "Лимит").expect("must parse amount"),
+            IisLimit::Amount(Decimal::new(1_234_567, 2))
+        );
     }
 }

@@ -12,29 +12,30 @@ use std::sync::LazyLock;
 /// Нормализует последовательность символов, схлопывая группы пробельных символов.
 fn normalize_chars<I: IntoIterator<Item = char>>(iter: I) -> String {
     let mut output = String::new();
-    let mut prev_space = false;
+    let mut pending_space = false;
     for ch in iter {
-        let is_space = ch.is_whitespace();
-        if is_space {
-            if !prev_space {
-                output.push(' ');
+        if ch.is_whitespace() {
+            if !output.is_empty() {
+                pending_space = true;
             }
-        } else {
-            output.push(ch);
+            continue;
         }
-        prev_space = is_space;
+
+        if pending_space {
+            output.push(' ');
+            pending_space = false;
+        }
+        output.push(ch);
     }
-    output.trim().to_string()
+    output
 }
 
 /// Нормализует числовую строку, удаляя пробелы, NBSP/NNBSP и плюс.
 fn normalize_number(input: &str) -> String {
     input
         .chars()
-        .filter(|ch| !matches!(*ch, ' ' | '\u{a0}' | '\u{202f}' | '+'))
-        .collect::<String>()
-        .trim()
-        .to_string()
+        .filter(|ch| !(ch.is_whitespace() || matches!(*ch, '\u{a0}' | '\u{202f}' | '+')))
+        .collect()
 }
 
 /// Разбирает денежное значение, трактуя пустую ячейку как ноль.
@@ -101,23 +102,60 @@ pub fn find_table_with_headers<'a>(
 
 /// Находит первый фрагмент текста, совпадающий с регулярным выражением.
 ///
-/// Возвращает содержимое первой захватывающей группы (группа `1`).
-pub fn capture_text(text: &str, pattern: &Regex) -> Option<String> {
+/// Возвращает срез первой захватывающей группы (группа `1`).
+pub fn capture_text<'a>(text: &'a str, pattern: &Regex) -> Option<&'a str> {
     pattern
         .captures(text)
         .and_then(|caps| caps.get(1))
-        .map(|m| m.as_str().to_string())
+        .map(|m| m.as_str())
 }
 
 /// Делает первую букву каждого слова заглавной, а остальные — строчными (используется для ФИО).
 pub fn capitalize_words(s: &str) -> String {
-    s.split_whitespace()
-        .map(|word| {
-            let mut chars = word.chars();
-            chars.next().map_or_else(String::new, |first| {
-                first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase()
-            })
-        })
-        .collect::<Vec<String>>()
-        .join(" ")
+    let mut normalized = String::new();
+    for word in s.split_whitespace() {
+        if !normalized.is_empty() {
+            normalized.push(' ');
+        }
+
+        let mut chars = word.chars();
+        if let Some(first) = chars.next() {
+            normalized.extend(first.to_uppercase());
+            normalized.push_str(&chars.as_str().to_lowercase());
+        }
+    }
+    normalized
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_chars_trims_and_collapses_whitespace() {
+        let text = normalize_chars(" \n Иванов \t Иван  \u{a0}Иванович ".chars());
+        assert_eq!(text, "Иванов Иван Иванович");
+    }
+
+    #[test]
+    fn normalize_number_removes_spaces_and_plus() {
+        let normalized = normalize_number(" +1 234\u{a0}567\u{202f}.89 ");
+        assert_eq!(normalized, "1234567.89");
+    }
+
+    #[test]
+    fn capture_text_returns_first_group() {
+        let re = Regex::new(r"Инвестор:\s*(.+)").expect("valid regex");
+        let text = "Инвестор: Иванов Иван Иванович";
+        let captured = capture_text(text, &re).expect("must capture investor");
+        assert_eq!(captured, "Иванов Иван Иванович");
+    }
+
+    #[test]
+    fn capitalize_words_normalizes_case() {
+        assert_eq!(
+            capitalize_words("иВАНОВ иВАН иВАНОВИЧ"),
+            "Иванов Иван Иванович"
+        );
+    }
 }

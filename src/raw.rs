@@ -55,7 +55,6 @@ impl DomReport {
     ///
     /// Сейчас парсер DOM не возвращает ошибки, но сигнатура оставлена в виде `Result`
     /// для согласованности API верхнего уровня.
-    #[inline]
     pub fn parse(raw: &RawReport) -> Result<Self, ReportError> {
         Ok(Self {
             doc: Html::parse_document(&raw.html),
